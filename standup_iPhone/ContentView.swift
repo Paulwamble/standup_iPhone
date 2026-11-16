@@ -3,7 +3,7 @@
 //  standup_iPhone
 //
 //  Stand-up reminders with a choosable start time, end time,
-//  reminder period and activity length.
+//  reminder period and activity length, plus a check of whether you stood up.
 //
 
 import SwiftUI
@@ -106,8 +106,10 @@ struct ContentView: View {
     @AppStorage("endMinutes") private var endMinutes = 16 * 60
     @AppStorage("interval") private var interval = 40
     @AppStorage("activityMinutes") private var activityMinutes = 2
+    @AppStorage("sensing") private var sensing = false
     @State private var denied = false
     @State private var pending: Task<Void, Never>?
+    @StateObject private var tracker = StandTracker()
     @Environment(\.scenePhase) private var scenePhase
 
     private var settings: ReminderSettings {
@@ -121,6 +123,8 @@ struct ContentView: View {
                 Section {
                     Toggle("Stand-up reminders", isOn: $enabled)
                 }
+
+                todaySection
 
                 Section {
                     DatePicker("Start", selection: timeBinding($startMinutes), displayedComponents: .hourAndMinute)
@@ -149,15 +153,69 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Stand Up")
+            .refreshable { await refreshStands() }
+            .task { await refreshStands() }
             .onChange(of: enabled) { _, _ in apply() }
             .onChange(of: weekdaysOnly) { _, _ in apply() }
             .onChange(of: startMinutes) { _, _ in apply() }
             .onChange(of: endMinutes) { _, _ in apply() }
             .onChange(of: interval) { _, _ in apply() }
             .onChange(of: activityMinutes) { _, _ in apply() }
-            .onChange(of: scenePhase) { _, phase in if phase == .active { apply() } }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    apply()
+                    Task { await refreshStands() }
+                }
+            }
         }
     }
+
+    // MARK: - Did I stand?
+
+    @ViewBuilder
+    private var todaySection: some View {
+        Section {
+            if !tracker.available {
+                Text("Health data isn't available on this device.")
+                    .foregroundStyle(.secondary)
+            } else if !sensing {
+                Button("Turn on stand sensing") {
+                    Task {
+                        await tracker.requestAccess()
+                        sensing = true
+                        await refreshStands()
+                    }
+                }
+            } else if tracker.checks.isEmpty {
+                Text("No reminders yet today.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(tracker.checks) { check in
+                    StandRow(check: check)
+                }
+            }
+        } header: {
+            Text(todayHeader)
+        } footer: {
+            Text(sensing
+                 ? "Counts as standing if you took \(StandTracker.stepsNeeded)+ steps, or Apple Watch logged stand time, during the activity. Pull down to refresh. If every reminder shows as missed, check Settings > Health > Data Access & Devices > Stand Up."
+                 : "Checks whether you got up after each reminder, using steps from your iPhone and stand time from Apple Watch in the Health app.")
+        }
+    }
+
+    private var todayHeader: String {
+        let decided = tracker.checks.filter { $0.result != .checking }
+        guard sensing, !decided.isEmpty else { return "Today" }
+        let stood = decided.filter { $0.result == .stood }.count
+        return "Today: stood \(stood) of \(decided.count)"
+    }
+
+    private func refreshStands() async {
+        guard sensing else { return }
+        await tracker.refresh(settings)
+    }
+
+    // MARK: - Helpers
 
     private var summary: String {
         guard endMinutes > startMinutes else { return "End time must be after start time." }
@@ -206,6 +264,7 @@ struct ContentView: View {
             } else {
                 Scheduler.cancel()
             }
+            await refreshStands()
         }
     }
 }

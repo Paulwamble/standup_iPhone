@@ -16,3 +16,6 @@ DerivedData/
 # Swift Package Manager
 .build/
 .swiftpm/
+
+# Files waiting to be deleted
+_to_delete/

@@ -39,6 +39,8 @@
         "DEVELOPMENT_TEAM": "P58F6S93NX",
         "ENABLE_PREVIEWS": "YES",
         "GENERATE_INFOPLIST_FILE": "YES",
+        "CODE_SIGN_ENTITLEMENTS": "standup_iPhone.entitlements",
+        "INFOPLIST_KEY_NSHealthShareUsageDescription": "Stand Up reads your steps and stand time to check whether you got up after each reminder.",
         "INFOPLIST_KEY_CFBundleDisplayName": "Stand Up",
         "INFOPLIST_KEY_UIApplicationSceneManifest_Generation": "YES",
         "INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents": "YES",
