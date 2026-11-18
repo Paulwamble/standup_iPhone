@@ -154,7 +154,14 @@ struct ContentView: View {
             }
             .navigationTitle("Stand Up")
             .refreshable { await refreshStands() }
-            .task { await refreshStands() }
+            .task {
+                // While the app is open, look every 30 seconds so "Excellent Stand!" comes quickly.
+                while !Task.isCancelled {
+                    await refreshStands()
+                    await StandCelebrator.check()
+                    try? await Task.sleep(for: .seconds(30))
+                }
+            }
             .onChange(of: enabled) { _, _ in apply() }
             .onChange(of: weekdaysOnly) { _, _ in apply() }
             .onChange(of: startMinutes) { _, _ in apply() }
@@ -183,6 +190,7 @@ struct ContentView: View {
                     Task {
                         await tracker.requestAccess()
                         sensing = true
+                        StandCelebrator.start()
                         await refreshStands()
                     }
                 }
